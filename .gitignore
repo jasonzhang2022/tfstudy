@@ -107,3 +107,6 @@ venv.bak/
 #--------add my myself
 test.py
 .idea
+
+iris_test.csv
+iris_training.csv
