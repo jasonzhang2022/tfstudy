@@ -16,6 +16,10 @@
     + avoid too much weight for this feature
   + avoid use descrecret values that appear a few time in sample
   
++ features set
+  + feature cross for latitude
+
+  
 For simplicity's sake in the latitude example, we used whole numbers as bin boundaries. 
 Had we wanted finer-grain resolution, we could have split bin boundaries at, say, 
 every tenth of a degree. Adding more bins enables the model to learn different behaviors 
