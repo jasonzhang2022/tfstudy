@@ -1,4 +1,3 @@
-#https://colab.sandbox.google.com/notebooks/mlcc/feature_sets.ipynb?utm_source=mlcc&utm_campaign=colab-external&utm_medium=referral&utm_content=featuresets-colab&hl=en#scrollTo=hMqWDc_m6rUC
 import math
 
 from IPython import display
@@ -93,23 +92,8 @@ training_targets = preprocess_targets(california_housing_dataframe.head(12000))
 # Choose the last 5000 (out of 17000) examples for validation.
 validation_examples = preprocess_features(california_housing_dataframe.tail(5000))
 validation_targets = preprocess_targets(california_housing_dataframe.tail(5000))
+
 '''
-# Double-check that we've done the right thing.
-print "Training examples summary:"
-display.display(training_examples.describe())
-print "Validation examples summary:"
-display.display(validation_examples.describe())
-
-print "Training targets summary:"
-display.display(training_targets.describe())
-print "Validation targets summary:"
-display.display(validation_targets.describe())
-'''
-correlation_dataframe = training_examples.copy()
-correlation_dataframe["target"] = training_targets["median_house_value"]
-
-display.display(correlation_dataframe.corr())
-
 def construct_feature_columns(input_features):
     """Construct the TensorFlow Feature Columns.
 
@@ -120,6 +104,7 @@ def construct_feature_columns(input_features):
     """
     return set([tf.feature_column.numeric_column(my_feature)
                 for my_feature in input_features])
+'''
 
 def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     """Trains a linear regression model.
@@ -153,6 +138,7 @@ def train_model(
         learning_rate,
         steps,
         batch_size,
+        feature_columns,
         training_examples,
         training_targets,
         validation_examples,
@@ -166,7 +152,7 @@ def train_model(
       learning_rate: A `float`, the learning rate.
       steps: A non-zero `int`, the total number of training steps. A training step
         consists of a forward and backward pass using a single batch.
-      batch_size: A non-zero `int`, the batch size.
+      feature_columns: A `set` specifying the input feature columns to use.
       training_examples: A `DataFrame` containing one or more columns from
         `california_housing_dataframe` to use as input features for training.
       training_targets: A `DataFrame` containing exactly one column from
@@ -184,14 +170,13 @@ def train_model(
     steps_per_period = steps / periods
 
     # Create a linear regressor object.
-    my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+    my_optimizer = tf.train.FtrlOptimizer(learning_rate=learning_rate)
     my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
     linear_regressor = tf.estimator.LinearRegressor(
-        feature_columns=construct_feature_columns(training_examples),
+        feature_columns=feature_columns,
         optimizer=my_optimizer
     )
 
-    # Create input functions.
     training_input_fn = lambda: my_input_fn(training_examples,
                                             training_targets["median_house_value"],
                                             batch_size=batch_size)
@@ -214,12 +199,11 @@ def train_model(
         # Train the model, starting from the prior state.
         linear_regressor.train(
             input_fn=training_input_fn,
-            steps=steps_per_period,
+            steps=steps_per_period
         )
         # Take a break and compute predictions.
         training_predictions = linear_regressor.predict(input_fn=predict_training_input_fn)
         training_predictions = np.array([item['predictions'][0] for item in training_predictions])
-
         validation_predictions = linear_regressor.predict(input_fn=predict_validation_input_fn)
         validation_predictions = np.array([item['predictions'][0] for item in validation_predictions])
 
@@ -246,30 +230,84 @@ def train_model(
     plt.legend()
     plt.show()
 
-
     return linear_regressor
 
-LATITUDE_RANGES = zip(xrange(32, 44), xrange(33, 45))
-
-def one_hot_encoding(sourcedf):
-    ret_df = pd.DataFrame()
-    ret_df["median_income"]=sourcedf["median_income"]
-    for r in LATITUDE_RANGES:
-        ret_df["latitude_{:d}_to_{:d}".format(r[0], r[1])]=sourcedf["latitude"].apply(lambda x:  1 if (x>=r[0] and x<r[1]) else 0 )
-    return ret_df
-
-minimal_training_examples = one_hot_encoding(training_examples)
-minimal_validation_examples = one_hot_encoding(validation_examples)
-
-''''''
-#
-# Don't forget to adjust these parameters.
-#
-train_model(
-    learning_rate=0.01,
-    steps=2000,
-    batch_size=5,
-    training_examples=minimal_training_examples,
+'''
+_ = train_model(
+    learning_rate=0.001,
+    steps=500,
+    batch_size=100,
+    feature_columns=construct_feature_columns(training_examples),
+    training_examples=training_examples,
     training_targets=training_targets,
-    validation_examples=minimal_validation_examples,
+    validation_examples=validation_examples,
+    validation_targets=validation_targets)
+'''
+
+def get_quantile_based_boundaries(feature_values, num_buckets):
+    boundaries = np.arange(1.0, num_buckets) / num_buckets
+    quantiles = feature_values.quantile(boundaries)
+    return [quantiles[q] for q in quantiles.keys()]
+
+def construct_feature_columns():
+    """Construct the TensorFlow Feature Columns.
+
+    Returns:
+      A set of feature columns
+    """
+    households = tf.feature_column.numeric_column("households")
+    longitude = tf.feature_column.numeric_column("longitude")
+    latitude = tf.feature_column.numeric_column("latitude")
+    housing_median_age = tf.feature_column.numeric_column("housing_median_age")
+    median_income = tf.feature_column.numeric_column("median_income")
+    rooms_per_person = tf.feature_column.numeric_column("rooms_per_person")
+
+    # Divide households into 7 buckets.
+    bucketized_households = tf.feature_column.bucketized_column(
+        households, boundaries=get_quantile_based_boundaries(
+            training_examples["households"], 7))
+
+    # Divide longitude into 10 buckets.
+    bucketized_longitude = tf.feature_column.bucketized_column(
+        longitude, boundaries=get_quantile_based_boundaries(
+            training_examples["longitude"], 10))
+
+    # YOUR CODE HERE: bucketize the following columns, following the example above:
+    bucketized_latitude = tf.feature_column.bucketized_column(
+        latitude, boundaries=get_quantile_based_boundaries(
+            training_examples["latitude"], 10))
+
+    bucketized_housing_median_age = tf.feature_column.bucketized_column(
+        housing_median_age, boundaries=get_quantile_based_boundaries(
+            training_examples["housing_median_age"], 10))
+
+    bucketized_median_income = tf.feature_column.bucketized_column(
+        median_income, boundaries=get_quantile_based_boundaries(
+            training_examples["median_income"], 10))
+
+    bucketized_rooms_per_person = tf.feature_column.bucketized_column(
+        rooms_per_person, boundaries=get_quantile_based_boundaries(
+            training_examples["rooms_per_person"], 7))
+    long_x_lat = tf.feature_column.crossed_column(
+        set([bucketized_longitude, bucketized_latitude]), hash_bucket_size=1000)
+
+    feature_columns = set([
+        bucketized_longitude,
+        bucketized_latitude,
+        bucketized_housing_median_age,
+        bucketized_households,
+        bucketized_median_income,
+        bucketized_rooms_per_person,
+        long_x_lat])
+
+    return feature_columns
+
+_ = train_model(
+    learning_rate=1.0,
+    steps=500,
+    batch_size=100,
+    feature_columns=construct_feature_columns(),
+    training_examples=training_examples,
+    training_targets=training_targets,
+    validation_examples=validation_examples,
     validation_targets=validation_targets)

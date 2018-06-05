@@ -17,7 +17,7 @@
   + avoid use descrecret values that appear a few time in sample
   
 + features set
-  + feature cross for latitude
+  + feature cross for latitude: huge improvement on loss.
 
   
 For simplicity's sake in the latitude example, we used whole numbers as bin boundaries. 
