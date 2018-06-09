@@ -109,4 +109,5 @@ test.py
 .idea
 
 *.csv
+terms.txt
 
